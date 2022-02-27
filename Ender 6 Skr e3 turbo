@@ -1,0 +1,438 @@
+# This file contains common pin mappings for the BIGTREETECH SKR E3
+# Turbo. To use this config, the firmware should be compiled for the
+# LPC1769.
+
+# See docs/Config_Reference.md for a description of parameters.
+
+#####################################################################
+# X/Y Stepper Settings
+#####################################################################
+
+[stepper_x]
+step_pin: P1.4
+dir_pin: !P1.8
+enable_pin: !P1.0
+microsteps: 16
+rotation_distance: 40
+endstop_pin: ^P1.29
+position_endstop: 260
+position_max: 260
+homing_speed: 50
+
+[tmc2209 stepper_x]
+uart_pin: P1.1
+#diag_pin: P1.29
+run_current: 1.0000
+#hold_current: 0.500
+#stealthchop_threshold: 999999
+
+
+[stepper_y]
+step_pin: P1.14
+dir_pin: P1.15
+enable_pin: !P1.9
+microsteps: 16
+rotation_distance: 40
+endstop_pin: ^P1.28
+position_endstop: 245  # moves y 0 position to keep nozzle from traveling too far forward off bed
+position_max: 245
+homing_speed: 50
+
+[tmc2209 stepper_y]
+uart_pin: P1.10
+#diag_pin: P1.28
+run_current: 1.0000
+#hold_current: 0.500
+#stealthchop_threshold: 999999
+
+
+#####################################################################
+# Z Steppers Settings
+#####################################################################
+
+[stepper_z]
+step_pin: P4.29
+dir_pin: !P4.28
+enable_pin: !P1.16
+microsteps: 16
+rotation_distance: 8
+#position_endstop: 0.0                     # disable to use BLTouch
+#endstop_pin: ^!PA7                         # disable to use BLTouch
+endstop_pin: probe:z_virtual_endstop
+position_min: -5
+position_max: 400
+
+[tmc2209 stepper_z]
+uart_pin: P1.17
+#diag_pin: P1.27
+run_current: 0.580
+#hold_current: 0.500
+#stealthchop_threshold: 999999
+
+#####################################################################
+# Extruder
+#####################################################################
+
+[extruder]
+step_pin: P2.6
+dir_pin: P2.7
+enable_pin: !P0.4
+microsteps: 16
+rotation_distance: 3.4334
+nozzle_diameter: 0.400
+filament_diameter: 1.750
+heater_pin: P2.3
+sensor_type: EPCOS 100K B57560G104F
+sensor_pin: P0.24
+#control: pid
+#pid_Kp: 26.949
+#pid_Ki: 1.497
+#pid_Kd: 121.269
+min_temp: 0
+max_temp: 250
+#pressure_advance: 0.07955        #Calibrate
+#pressure_advance_smooth_time: 0.040000
+
+[tmc2209 extruder]
+uart_pin: P0.5
+#diag_pin: P1.26
+run_current: 0.750
+#hold_current: 0.500
+#stealthchop_threshold: 999999
+
+
+#####################################################################
+# Bed Heater
+#####################################################################
+
+[heater_bed]
+heater_pin: P2.5
+sensor_type: EPCOS 100K B57560G104F
+sensor_pin: P0.25
+#control: pid
+#pid_Kp: 327.11
+#pid_Ki: 19.20
+#pid_Kd: 1393.45
+min_temp: 0
+max_temp: 130
+
+#####################################################################
+# Fans
+#####################################################################
+
+[fan]
+pin: P2.1
+
+[heater_fan nozzle_cooling_fan]
+pin: P2.2
+
+[controller_fan Controller_fan]
+# Controller fan
+pin: rpi:gpio19
+kick_start_time: 0.500
+heater: heater_bed
+stepper: stepper_x, stepper_y
+
+#####################################################################
+# Probe & Mesh
+#####################################################################
+
+[safe_z_home]                           # enable for BLTouch
+home_xy_position: 130, 122.5 # accounts for new y position_endstop
+speed: 100
+z_hop: 10
+z_hop_speed: 5
+
+[bltouch]
+stow_on_each_sample: False
+probe_with_touch_mode: True
+sensor_pin: ^P1.22
+control_pin: P1.23
+pin_move_time: 0.5
+pin_up_touch_mode_reports_triggered: False
+x_offset: -34.2
+y_offset: 0
+#z_offset: 1
+speed: 3
+lift_speed: 50
+samples: 1
+sample_retract_dist: 5
+samples_tolerance_retries: 3
+
+[bed_mesh]                              # enable for BLTouch
+speed: 100
+mesh_min: 0, 0
+mesh_max: 225.8, 245 # position_max + offset to stay within travel limits.
+algorithm: bicubic
+probe_count: 5,5
+
+[screws_tilt_adjust]
+screw1: 85,55
+screw1_name: front left screw
+screw2: 260,55
+screw2_name: front right screw
+screw3: 260,220
+screw3_name: rear right screw
+screw4: 85,220
+screw4_name: rear left screw
+horizontal_move_z: 10.
+speed: 50.
+screw_thread: CW-M3
+
+#####################################################################
+# Misc
+#####################################################################
+
+[adxl345]
+cs_pin: rpi:None
+
+[resonance_tester]
+accel_chip: adxl345
+probe_points:
+    100,100,30  # an example
+
+[printer]
+kinematics: corexy
+max_velocity: 20000
+max_accel: 20000
+max_z_velocity: 10
+max_z_accel: 100
+
+[input_shaper]
+shaper_freq_x: 85.6  # frequency for the X mark of the test model
+shaper_type_x: mzv
+shaper_freq_y: 74.0  # frequency for the Y mark of the test model
+shaper_type_y: ei
+
+[filament_switch_sensor runout_sensor]
+pause_on_runout: True
+   
+runout_gcode:
+    SAVE_GCODE_STATE NAME=PAUSE_state
+    BASE_PAUSE
+    G91
+    G1 E-5 F2100
+    G1 Z10
+    G90
+    G1 X175 Y245 F6000
+   
+insert_gcode:
+   
+event_delay: 3.0
+  
+pause_delay: 0.5
+   
+switch_pin: ^P1.25
+
+#[extruder1]
+#step_pin: P2.11
+#dir_pin: P2.12
+#enable_pin: !P0.21
+#heater_pin: P2.4
+#sensor_pin: P0.23
+#...
+
+#[tmc2209 extruder1]
+#uart_pin: P0.22
+##diag_pin: P1.25
+#...
+
+[static_digital_output tmc_standby_pins]
+pins: !P3.26, !P3.25, !P1.18, !P1.19, !P2.13
+
+[board_pins]
+aliases:
+    # EXP1 header
+    EXP1_1=P2.8,  EXP1_3=P0.19, EXP1_5=P0.20, EXP1_7=P0.17, EXP1_9=<GND>,
+    EXP1_2=P0.16, EXP1_4=<RST>, EXP1_6=P0.15, EXP1_8=P0.18, EXP1_10=<5V>
+
+
+#####################################################################
+# Temp
+#####################################################################
+
+[temperature_sensor Mainboard]
+
+sensor_type: EPCOS 100K B57560G104F
+
+sensor_pin: P1.30
+
+[temperature_sensor raspberry_pi]
+sensor_type: temperature_host
+min_temp: 10
+max_temp: 100
+
+#####################################################################
+# Mcus
+#####################################################################
+
+
+[mcu]
+serial: /dev/serial/by-id/usb-Klipper_lpc1769_01700015C09869AF0FE7405EC62000F5-if00
+
+[mcu rpi]
+serial: /tmp/klipper_host_mcu
+
+#####################################################################
+# Macro
+#####################################################################
+
+[virtual_sdcard]
+path: ~/gcode_files
+
+[display_status]
+
+[pause_resume]
+
+[gcode_macro LINEAR_ADVANCE]
+gcode:
+  {% if 'K' in params %}
+    {% if 'E' in params %}
+      SET_PRESSURE_ADVANCE EXTRUDER={E} ADVANCE={K}
+    {% else %}
+      SET_PRESSURE_ADVANCE ADVANCE={K}
+    {% endif %}
+  {% endif %}
+
+[gcode_macro POWEROFF]
+gcode:
+  RESPOND TYPE=command MSG=action:poweroff
+  
+[gcode_macro CANCEL_PRINT]
+rename_existing: BASE_CANCEL_PRINT
+gcode:
+    TURN_OFF_HEATERS
+    CLEAR_PAUSE
+    SDCARD_RESET_FILE
+    BASE_CANCEL_PRINT
+
+[gcode_macro PAUSE]
+description: Pause the actual running print
+rename_existing: PAUSE_BASE
+# change this if you need more or less extrusion
+variable_extrude: 1.0
+gcode:
+  ##### read E from pause macro #####
+  {% set E = printer["gcode_macro PAUSE"].extrude|float %}
+  ##### set park positon for x and y #####
+  # default is your max posion from your printer.cfg
+  {% set x_park = printer.toolhead.axis_maximum.x|float - 5.0 %}
+  {% set y_park = printer.toolhead.axis_maximum.y|float - 5.0 %}
+  ##### calculate save lift position #####
+  {% set max_z = printer.toolhead.axis_maximum.z|float %}
+  {% set act_z = printer.toolhead.position.z|float %}
+  {% if act_z < (max_z - 2.0) %}
+      {% set z_safe = 2.0 %}
+  {% else %}
+      {% set z_safe = max_z - act_z %}
+  {% endif %}
+  ##### end of definitions #####
+  PAUSE_BASE
+  G91
+  {% if printer.extruder.can_extrude|lower == 'true' %}
+    G1 E-{E} F2100
+  {% else %}
+    {action_respond_info("Extruder not hot enough")}
+  {% endif %}
+  {% if "xyz" in printer.toolhead.homed_axes %}
+    G1 Z{z_safe} F900
+    G90
+    G1 X{x_park} Y{y_park} F6000
+  {% else %}
+    {action_respond_info("Printer not homed")}
+  {% endif %} 
+
+[gcode_macro RESUME]
+description: Resume the actual running print
+rename_existing: RESUME_BASE
+gcode:
+  ##### read E from pause macro #####
+  {% set E = printer["gcode_macro PAUSE"].extrude|float %}
+  #### get VELOCITY parameter if specified ####
+  {% if 'VELOCITY' in params|upper %}
+    {% set get_params = ('VELOCITY=' + params.VELOCITY)  %}
+  {%else %}
+    {% set get_params = "" %}
+  {% endif %}
+  ##### end of definitions #####
+  {% if printer.extruder.can_extrude|lower == 'true' %}
+    G91
+    G1 E{E} F2100
+  {% else %}
+    {action_respond_info("Extruder not hot enough")}
+  {% endif %}  
+  RESUME_BASE {get_params}
+
+[gcode_macro THE_END]
+gcode:
+    TURN_OFF_HEATERS    ;turn off heaters... 
+    SAVE_GCODE_STATE NAME=END_state
+    M83                 ;set relative extrusion
+    G92 E0              ;reset extrusion amount
+    M204 S10000         ;set max acceleration
+    G1 E-2 F4000        ;retract 2mm
+    M204 S3000          ;set max acceleration
+
+    ;move the toolhead out of the way
+    ;if the tool is less than 30mm away from Z Max, move it to Z max, otherwise, move Z up 30mm
+    
+    ;Obtain the Z axis limit from the [stepper_z] section of the config file and make
+    ;  a decision where to move the Z axis based on the current toolhead 
+    {% if printer.toolhead.position.z|float + 30 >= printer.configfile.config["stepper_z"]["position_max"]|float %}
+    G90                  ;set absolute extrusion
+    G1 Z{printer.configfile.config["stepper_z"]["position_max"]|float} F1000 ;Move tool
+    {% else %}
+
+    G91                  ;set relative extrusion
+    G1 Z30 F1000         ;move Z axis up 30mm
+    {% endif %}
+
+    RESTORE_GCODE_STATE NAME=END_state
+    G1 X0 Y200 F24000    ;park tool at back of printer
+    M107                
+    #UNLOAD_FILAMENT     ;this is a good spot to call an unload 
+                         ;filament macro, if you are into that sort of thing
+    SET_GCODE_OFFSET Z=0 ;reset whatever babystepping you have done
+    M84                  ;disable motors
+    CLEAR_PAUSE          ;clear whatever PAUSE state you may have if you have it
+    M117 DONE!!!(        ;print a message on your LCD
+
+
+# See the sample-lcd.cfg file for definitions of common LCD displays.
+
+#*# <---------------------- SAVE_CONFIG ---------------------->
+#*# DO NOT EDIT THIS BLOCK OR BELOW. The contents are auto-generated.
+#*#
+#*# [extruder]
+#*# control = pid
+#*# pid_kp = 16.328
+#*# pid_ki = 0.605
+#*# pid_kd = 110.217
+#*#
+#*# [heater_bed]
+#*# control = pid
+#*# pid_kp = 64.178
+#*# pid_ki = 0.725
+#*# pid_kd = 1419.946
+#*#
+#*# [bltouch]
+#*# z_offset = 1.050
+#*#
+#*# [bed_mesh default]
+#*# version = 1
+#*# points =
+#*# 	-0.082500, 0.000000, -0.030000, -0.070000, -0.120000
+#*# 	-0.007500, -0.010000, -0.002500, -0.017500, -0.032500
+#*# 	-0.095000, -0.080000, -0.012500, -0.017500, 0.007500
+#*# 	-0.147500, -0.125000, -0.040000, 0.000000, 0.015000
+#*# 	-0.217500, -0.215000, -0.170000, -0.060000, -0.030000
+#*# tension = 0.2
+#*# min_x = 0.0
+#*# algo = bicubic
+#*# y_count = 5
+#*# mesh_y_pps = 2
+#*# min_y = 0.0
+#*# x_count = 5
+#*# max_y = 245.0
+#*# mesh_x_pps = 2
+#*# max_x = 225.8
