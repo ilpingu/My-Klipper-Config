@@ -16,14 +16,14 @@ enable_pin: !P1.0
 microsteps: 16
 rotation_distance: 40.000
 endstop_pin: ^P1.29
-position_endstop: 235
-position_max: 235
+position_endstop: 255
+position_max: 255
 homing_speed: 50
 
 [tmc2209 stepper_x]
 uart_pin: P1.1
 #diag_pin: P1.29
-run_current: 0.800
+run_current: 1.100
 #hold_current: 0.500
 #stealthchop_threshold: 999999
 
@@ -35,14 +35,14 @@ enable_pin: !P1.9
 microsteps: 16
 rotation_distance: 40.000
 endstop_pin: ^P1.28
-position_endstop: 235  # moves y 0 position to keep nozzle from traveling too far forward off bed
-position_max: 235
+position_endstop: 255 # moves y 0 position to keep nozzle from traveling too far forward off bed
+position_max: 255
 homing_speed: 50
 
 [tmc2209 stepper_y]
 uart_pin: P1.10
 #diag_pin: P1.28
-run_current: 0.800
+run_current: 1.100
 #hold_current: 0.500
 #stealthchop_threshold: 999999
 
@@ -120,7 +120,7 @@ max_temp: 300
 [tmc2209 extruder]
 uart_pin: P0.5
 #diag_pin: P1.26
-run_current: 0.750
+run_current: 0.400
 #hold_current: 0.500
 #stealthchop_threshold: 999999
 
@@ -170,26 +170,26 @@ z_hop: 10
 z_hop_speed: 5
 
 [probe]
-pin: ^P1.27
-x_offset: -41.00                          # modify as needed for bltouch location
-y_offset: -10.00                       # modify as needed for bltouch location
+pin: ^!P1.27
+x_offset: -28.00                        # modify as needed for bltouch location
+y_offset: -14.00                       # modify as needed for bltouch location
 #z_offset: -0.699
 
 [bed_mesh]                            # enable for BLTouch
 speed: 300
-mesh_min: 20, 20
-mesh_max: 175, 225
+mesh_min: 30, 30
+mesh_max: 225, 225
 algorithm: bicubic
-probe_count: 3,3                     # 49 points due to large bed size
+probe_count: 3,3                    # 49 points due to large bed size
 horizontal_move_z: 5
 
 [z_tilt]
 z_positions:
-    150, 37
-    150, 235
+    -20, 140
+    285, 140
 points:
-    150, 37
-    150, 235
+    61, 140
+    255, 140
 speed: 120
 horizontal_move_z: 5
 
@@ -220,10 +220,10 @@ probe_points:
     100,100,30  # an example
 
 [printer]
-kinematics: cartesian
-max_velocity: 300
-max_accel: 3000
-max_z_velocity: 5
+kinematics: corexy
+max_velocity: 10000
+max_accel: 10000
+max_z_velocity: 10
 max_z_accel: 100
 
 #[input_shaper]
@@ -268,6 +268,12 @@ aliases:
 # Temp
 #####################################################################
 
+[temperature_sensor Enclosure]
+sensor_type: EPCOS 100K B57560G104F
+sensor_pin: P0.23
+min_temp: 0
+max_temp: 100
+
 [temperature_sensor raspberry_pi]
 sensor_type: temperature_host
 min_temp: 10
@@ -278,6 +284,9 @@ max_temp: 100
 sensor_type: EPCOS 100K B57560G104F
 
 sensor_pin: P1.30
+
+
+
 
 #####################################################################
 # Mcus
@@ -307,8 +316,6 @@ pin: EXP1_1
 
 [include macro.cfg]
 
-   
-
 
 # See the sample-lcd.cfg file for definitions of common LCD displays.
 
@@ -317,9 +324,9 @@ pin: EXP1_1
 #*#
 #*# [extruder]
 #*# control = pid
-#*# pid_kp = 25.383
-#*# pid_ki = 1.459
-#*# pid_kd = 110.418
+#*# pid_kp = 20.533
+#*# pid_ki = 1.045
+#*# pid_kd = 100.867
 #*#
 #*# [heater_bed]
 #*# control = pid
@@ -328,21 +335,23 @@ pin: EXP1_1
 #*# pid_kd = 991.632
 #*#
 #*# [probe]
-#*# z_offset = 1.000
+#*# z_offset = 0.570
 #*#
 #*# [bed_mesh default]
 #*# version = 1
 #*# points =
-#*# 	-0.055444, -0.059194, 0.020806
-#*# 	-0.056694, -0.009194, -0.006694
-#*# 	0.004556, -0.047944, 0.032056
+#*# 	0.076250, 0.305000, 0.228750, 0.091250, -0.038750
+#*# 	0.106250, 0.243750, 0.131250, 0.042500, 0.008750
+#*# 	-0.113750, 0.086250, 0.035000, -0.010000, -0.005000
+#*# 	-0.328750, -0.065000, -0.070000, -0.050000, 0.008750
+#*# 	-0.511250, -0.180000, -0.138750, -0.063750, 0.053750
 #*# tension = 0.2
-#*# min_x = 20.0
+#*# min_x = 80.0
 #*# algo = bicubic
-#*# y_count = 3
+#*# y_count = 5
 #*# mesh_y_pps = 2
-#*# min_y = 20.0
-#*# x_count = 3
-#*# max_y = 225.0
+#*# min_y = 54.0
+#*# x_count = 5
+#*# max_y = 255.0
 #*# mesh_x_pps = 2
-#*# max_x = 175.0
+#*# max_x = 255.0
