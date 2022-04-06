@@ -1,5 +1,5 @@
 #####################################################################
-# Macro
+# Macros
 #####################################################################
 
 [virtual_sdcard]
@@ -121,3 +121,246 @@ gcode:
     M84                  ;disable motors
     CLEAR_PAUSE          ;clear whatever PAUSE state you may have if you have it
     M117 DONE!!!(        ;print a message on your LCD
+
+
+[gcode_macro HEAT_SOAK]
+description: heats the bed for a while
+
+variable_target_temp: 0
+variable_stage: None ## heating -> soaking -> done -> None
+
+## in seconds
+variable_check_interval: 10
+variable_soak_time_remaining: 0
+variable_total_time_elapsed: 0
+
+gcode:
+    {% set TARGET = params.TARGET | default(0) | float %}
+    {% set DURATION = (params.DURATION | default(5) | int) * 60 %} ## minutes to seconds
+
+    SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=target_temp         VALUE={ TARGET }
+    SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=stage               VALUE="'heating'"
+    SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=soak_time_remaining VALUE={ DURATION }
+    SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=total_time_elapsed  VALUE=0
+
+    ;; fire up the heater
+    SET_HEATER_TEMPERATURE HEATER=heater_bed TARGET={ TARGET }
+
+    ;; run the fan to circulate air
+    M106 S51
+
+    ;; put the bed and nozzle where they're a safe distance apart
+    G28
+    G91
+    G1 z50 F600
+    G90
+
+    M84 ;; turn off steppers
+
+    UPDATE_DELAYED_GCODE ID=heat_soaker DURATION={ check_interval }
+
+[gcode_macro CANCEL_HEAT_SOAK]
+description: cancels an in-progress HEAT_SOAK cycle
+gcode:
+    SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=stage VALUE="'cancel'"
+    UPDATE_DELAYED_GCODE ID=heat_soaker DURATION=1
+
+[delayed_gcode heat_soaker]
+; ## debug
+; { action_respond_info( printer['gcode_macro HEAT_SOAK'] | tojson )}
+gcode:
+    {% set heat_soak = printer['gcode_macro HEAT_SOAK'] %}
+
+    ## update total time elapsed
+    {% set total_time_elapsed = heat_soak.total_time_elapsed + heat_soak.check_interval %}
+    SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=total_time_elapsed VALUE={ total_time_elapsed }
+
+    {% set stage = heat_soak.stage %}
+    {% if stage == "heating" and printer.heater_bed.temperature >= heat_soak.target_temp %}
+        {% set stage = "soaking" %}
+    {% endif %}
+
+    {% if stage == "soaking" %}
+        ## update soak countdown
+        {% set soak_time_remaining = [heat_soak.soak_time_remaining - heat_soak.check_interval, 0] | max %}
+        SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=soak_time_remaining VALUE={ soak_time_remaining }
+
+        {% if soak_time_remaining == 0 %}
+            {% set stage = "done" %}
+        {% endif %}
+    {% endif %}
+
+    SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=stage VALUE="'{ stage }'"
+
+    {% if stage in ("done", "cancel") %}
+
+        {% if stage == "cancel" %}
+            {% set stage = "done" %}
+            TURN_OFF_HEATERS
+            M107 ; turn off fan
+
+            M117 { "soak cancelled after ~%.1fm" | format(total_time_elapsed / 60.0) }
+        {% else %}
+            M117 { "soak complete after %.1fm" | format(total_time_elapsed / 60.0) }
+        {% endif %}
+
+        ## reset all state vars, except stage, which may be queried via the api
+        SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=target_temp         VALUE=0
+        SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=soak_time_remaining VALUE=0
+        SET_GCODE_VARIABLE MACRO=HEAT_SOAK VARIABLE=total_time_elapsed  VALUE=0
+
+    {% else %}
+
+        {% if total_time_elapsed % 90 == 0 %}
+            ## output status periodically
+            {% if stage == "heating" %}
+                M117 { "heating -- %.1fm elapsed" | format(total_time_elapsed / 60.0) }
+            {% elif stage == "soaking" %}
+                M117 { "soaking -- %.1fm remaining" | format(soak_time_remaining / 60.0) }
+            {% endif %}
+        {% endif %}
+
+        ## trigger ourselves again
+        UPDATE_DELAYED_GCODE ID=heat_soaker DURATION={ heat_soak.check_interval }
+
+        ## dwell for 1ms to prevent from going idle
+        G4 P1
+
+    {% endif %}
+   
+# Home, get position, throw around toolhead, home again.
+# If MCU stepper positions (first line in GET_POSITION) are greater than a full step different (your number of microsteps), then skipping occured.
+# We only measure to a full step to accomodate for endstop variance.
+# Example: TEST_SPEED SPEED=300 ACCEL=5000 ITERATIONS=10
+
+[gcode_macro TEST_SPEED]
+gcode:
+	# Speed
+	{% set speed  = params.SPEED|default(printer.configfile.settings.printer.max_velocity)|int %}
+	# Iterations
+	{% set iterations = params.ITERATIONS|default(5)|int %}
+	# Acceleration
+	{% set accel  = params.ACCEL|default(printer.configfile.settings.printer.max_accel)|int %}
+	# Bounding inset for large pattern (helps prevent slamming the toolhead into the sides after small skips, and helps to account for machines with imperfectly set dimensions)
+	{% set bound = params.BOUND|default(30)|int %}
+	# Size for small pattern box
+	{% set smallpatternsize = SMALLPATTERNSIZE|default(20)|int %}
+	
+	# Large pattern
+		# Max positions, inset by BOUND
+		{% set x_min = printer.toolhead.axis_minimum.x + bound %}
+		{% set x_max = printer.toolhead.axis_maximum.x - bound %}
+		{% set y_min = printer.toolhead.axis_minimum.y + bound %}
+		{% set y_max = printer.toolhead.axis_maximum.y - bound %}
+	
+	# Small pattern at center
+		# Find X/Y center point
+		{% set x_center = (printer.toolhead.axis_minimum.x|float + printer.toolhead.axis_maximum.x|float ) / 2 %}
+		{% set y_center = (printer.toolhead.axis_minimum.y|float + printer.toolhead.axis_maximum.y|float ) / 2 %}
+		
+		# Set small pattern box around center point
+		{% set x_center_min = x_center - (smallpatternsize/2) %}
+		{% set x_center_max = x_center + (smallpatternsize/2) %}
+		{% set y_center_min = y_center - (smallpatternsize/2) %}
+		{% set y_center_max = y_center + (smallpatternsize/2) %}
+
+	# Save current gcode state (absolute/relative, etc)
+	SAVE_GCODE_STATE NAME=TEST_SPEED
+	
+	# Output parameters to g-code terminal
+	{ action_respond_info("TEST_SPEED: starting %d iterations at speed %d, accel %d" % (iterations, speed, accel)) }
+
+	# Absolute positioning
+	G90
+	
+	# Set new limits
+	SET_VELOCITY_LIMIT VELOCITY={speed} ACCEL={accel} ACCEL_TO_DECEL={accel / 2}
+
+	# Home and get position for comparison later:
+		G28
+		# QGL if not already QGLd (only if QGL section exists in config)
+		{% if printer.configfile.settings.quad_gantry_level %}
+			{% if printer.quad_gantry_level.applied == False %}
+				QUAD_GANTRY_LEVEL
+				G28 Z
+			{% endif %}
+		{% endif %}	
+		G0 X{printer.toolhead.axis_maximum.x} Y{printer.toolhead.axis_maximum.y} F{30*60}
+		G4 P1000 
+		GET_POSITION
+
+	# Go to starting position
+	G0 X{x_min} Y{y_min} Z{bound + 10} F{speed*60}
+
+	{% for i in range(iterations) %}
+		# Large pattern
+			# Diagonals
+			G0 X{x_min} Y{y_min} F{speed*60}
+			G0 X{x_max} Y{y_max} F{speed*60}
+			G0 X{x_min} Y{y_min} F{speed*60}
+			G0 X{x_max} Y{y_min} F{speed*60}
+			G0 X{x_min} Y{y_max} F{speed*60}
+			G0 X{x_max} Y{y_min} F{speed*60}
+			
+			# Box
+			G0 X{x_min} Y{y_min} F{speed*60}
+			G0 X{x_min} Y{y_max} F{speed*60}
+			G0 X{x_max} Y{y_max} F{speed*60}
+			G0 X{x_max} Y{y_min} F{speed*60}
+		
+		# Small pattern
+			# Small diagonals 
+			G0 X{x_center_min} Y{y_center_min} F{speed*60}
+			G0 X{x_center_max} Y{y_center_max} F{speed*60}
+			G0 X{x_center_min} Y{y_center_min} F{speed*60}
+			G0 X{x_center_max} Y{y_center_min} F{speed*60}
+			G0 X{x_center_min} Y{y_center_max} F{speed*60}
+			G0 X{x_center_max} Y{y_center_min} F{speed*60}
+			
+			# Small box
+			G0 X{x_center_min} Y{y_center_min} F{speed*60}
+			G0 X{x_center_min} Y{y_center_max} F{speed*60}
+			G0 X{x_center_max} Y{y_center_max} F{speed*60}
+			G0 X{x_center_max} Y{y_center_min} F{speed*60}
+	{% endfor %}
+
+	# Restore max speed/accel/accel_to_decel to their configured values
+	SET_VELOCITY_LIMIT VELOCITY={printer.configfile.settings.printer.max_velocity} ACCEL={printer.configfile.settings.printer.max_accel} ACCEL_TO_DECEL={printer.configfile.settings.printer.max_accel_to_decel} 
+
+	# Re-home and get position again for comparison:
+		G28
+		# Go to XY home positions (in case your homing override leaves it elsewhere)
+		G0 X{printer.toolhead.axis_maximum.x} Y{printer.toolhead.axis_maximum.y} F{30*60}
+		G4 P1000 
+		GET_POSITION
+
+	# Restore previous gcode state (absolute/relative, etc)
+	RESTORE_GCODE_STATE NAME=TEST_SPEED
+
+  ######################################################################
+# Filament Change
+######################################################################
+
+# M600: Filament Change. This macro will pause the printer, move the
+# tool to the change position, and retract the filament 50mm. Adjust
+# the retraction settings for your own extruder. After filament has
+# been changed, the print can be resumed from its previous position
+# with the "RESUME" gcode.
+
+[pause_resume]
+
+[gcode_macro M600]
+gcode:
+    {% set X = params.X|default(50)|float %}
+    {% set Y = params.Y|default(0)|float %}
+    {% set Z = params.Z|default(10)|float %}
+    SAVE_GCODE_STATE NAME=M600_state
+    PAUSE
+    G91
+    G1 E-.8 F2700
+    G1 Z{Z}
+    G90
+    G1 X{X} Y{Y} F3000
+    G91
+    G1 E-50 F1000
+    RESTORE_GCODE_STATE NAME=M600_state
